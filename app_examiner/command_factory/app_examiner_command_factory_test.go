@@ -145,6 +145,7 @@ var _ = Describe("CommandFactory", func() {
 		})
 
 		Context("When a rate flag is provided", func() {
+
 			var closeChan chan struct{}
 
 			It("dynamically displays the visualization", func() {

@@ -48,6 +48,8 @@ func NewIntegrationTestRunner(outputWriter io.Writer, config *config.Config) Int
 
 func (runner *integrationTestRunner) Run(timeout time.Duration, verbose bool) {
 	ginkgo_config.DefaultReporterConfig.Verbose = verbose
+	ginkgo_config.DefaultReporterConfig.SlowSpecThreshold = float64(20)
+	//	ginkgo_config.DefaultReporterConfig.NoColor = true		// TODO: wrap with flag?
 	defineTheGinkgoTests(runner, timeout)
 	RegisterFailHandler(Fail)
 	RunSpecs(runner.t, "Lattice Integration Tests")
@@ -124,7 +126,7 @@ func defineTheGinkgoTests(runner *integrationTestRunner, timeout time.Duration) 
 
 func startDockerApp(timeout time.Duration, latticeCliPath, appName string, args ...string) {
 
-	fmt.Fprintf(GinkgoWriter, "Whetstone is attempting to start %s\n", appName)
+	fmt.Fprintf(GinkgoWriter, "\x1b[91m--= Whetstone is attempting to start %s =--\x1b[0m\n", appName)
 	startArgs := append([]string{"start", appName}, args...)
 	command := command(timeout, latticeCliPath, startArgs...)
 
@@ -134,11 +136,11 @@ func startDockerApp(timeout time.Duration, latticeCliPath, appName string, args 
 	expectExit(timeout, session)
 
 	Expect(session.Out).To(gbytes.Say(appName + " is now running."))
-	fmt.Fprintf(GinkgoWriter, "Yay! Whetstone started %s\n", appName)
+	fmt.Fprintf(GinkgoWriter, "\x1b[91m--= Yay! Whetstone started %s =--\x1b[0m\n", appName)
 }
 
 func streamLogs(timeout time.Duration, latticeCliPath, appName string) *gexec.Session {
-	fmt.Fprintf(GinkgoWriter, "Whetstone is attempting to stream logs from %s\n", appName)
+	fmt.Fprintf(GinkgoWriter, "\x1b[91m--= Whetstone is attempting to stream logs from %s =--\x1b[0m\n", appName)
 	command := command(timeout, latticeCliPath, "logs", appName)
 
 	session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -148,7 +150,7 @@ func streamLogs(timeout time.Duration, latticeCliPath, appName string) *gexec.Se
 }
 
 func scaleApp(timeout time.Duration, latticeCliPath, appName string) {
-	fmt.Fprintf(GinkgoWriter, "Whetstone is attempting to scale %s\n", appName)
+	fmt.Fprintf(GinkgoWriter, "\x1b[91m--= Whetstone is attempting to scale %s =--\x1b[0m\n", appName)
 	command := command(timeout, latticeCliPath, "scale", appName, "3")
 	session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 
@@ -157,7 +159,7 @@ func scaleApp(timeout time.Duration, latticeCliPath, appName string) {
 }
 
 func removeApp(timeout time.Duration, latticeCliPath, appName string) {
-	fmt.Fprintf(GinkgoWriter, "Whetstone is attempting to remove %s\n", appName)
+	fmt.Fprintf(GinkgoWriter, "\x1b[91m--= Whetstone is attempting to remove %s =--\x1b[0m\n", appName)
 	command := command(timeout, latticeCliPath, "remove", appName)
 
 	session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -167,7 +169,7 @@ func removeApp(timeout time.Duration, latticeCliPath, appName string) {
 }
 
 func targetLattice(timeout time.Duration, latticeCliPath, domain, username, password string) {
-	fmt.Fprintf(GinkgoWriter, "Whetstone is attempting to target %s with username:'%s' ; password:'%s'\n", domain, username, password)
+	fmt.Fprintf(GinkgoWriter, "\x1b[91m--= Whetstone is attempting to target %s with username:'%s' ; password:'%s' =--\x1b[0m\n", domain, username, password)
 	stdinReader, stdinWriter := io.Pipe()
 
 	command := command(timeout, latticeCliPath, "target", domain)
@@ -265,10 +267,8 @@ func makeGetRequestToRoute(route string) (*http.Response, error) {
 }
 
 func expectExit(timeout time.Duration, session *gexec.Session) {
-	fmt.Printf("\nsession=%#v\nTIMEOUT=%d\n", session, timeout)
 	Eventually(session, timeout).Should(gexec.Exit(0))
 	Expect(string(session.Out.Contents())).To(HaveSuffix("\n"))
-
 }
 
 func init() {
