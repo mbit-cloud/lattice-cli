@@ -11,6 +11,8 @@ import (
 	"github.com/pivotal-cf-experimental/lattice-cli/app_runner/docker_metadata_fetcher"
 	"github.com/pivotal-cf-experimental/lattice-cli/app_runner/docker_repository_name_formatter"
 	"github.com/pivotal-cf-experimental/lattice-cli/colors"
+	"github.com/pivotal-cf-experimental/lattice-cli/exit_handler"
+	"github.com/pivotal-cf-experimental/lattice-cli/exit_handler/exit_codes"
 	"github.com/pivotal-cf-experimental/lattice-cli/logs/console_tailed_logs_outputter"
 
 	"github.com/pivotal-cf-experimental/lattice-cli/output"
@@ -32,6 +34,7 @@ type AppRunnerCommandFactoryConfig struct {
 	Clock                 clock.Clock
 	Logger                lager.Logger
 	TailedLogsOutputter   console_tailed_logs_outputter.TailedLogsOutputter
+	ExitHandler           exit_handler.ExitHandler
 }
 
 func NewAppRunnerCommandFactory(config AppRunnerCommandFactoryConfig) *AppRunnerCommandFactory {
@@ -45,6 +48,7 @@ func NewAppRunnerCommandFactory(config AppRunnerCommandFactoryConfig) *AppRunner
 			env:                   config.Env,
 			clock:                 config.Clock,
 			tailedLogsOutputter:   config.TailedLogsOutputter,
+			exitHandler:           config.ExitHandler,
 		},
 	}
 }
@@ -166,6 +170,7 @@ type appRunnerCommand struct {
 	env                   []string
 	clock                 clock.Clock
 	tailedLogsOutputter   console_tailed_logs_outputter.TailedLogsOutputter
+	exitHandler           exit_handler.ExitHandler
 }
 
 func (cmd *appRunnerCommand) startApp(context *cli.Context) {
@@ -280,12 +285,25 @@ func (cmd *appRunnerCommand) startApp(context *cli.Context) {
 
 	go cmd.tailedLogsOutputter.OutputTailedLogs(name)
 
+	placementErrorOccurred := false
 	ok := cmd.pollUntilSuccess(func() bool {
-		numberOfRunningInstances, _ := cmd.appRunner.NumOfRunningAppInstances(name)
+		numberOfRunningInstances, placementError, _ := cmd.appRunner.NumOfRunningAppInstances(name)
+
+		if placementError {
+			cmd.output.Say(colors.Red("Error, could not place all instances."))
+			placementErrorOccurred = true
+			return true
+		}
 		return numberOfRunningInstances == instances
 	}, false)
 
 	cmd.tailedLogsOutputter.StopOutputting()
+
+	if placementErrorOccurred {
+		cmd.exitHandler.Exit(exit_codes.PlacementError)
+		return
+	}
+
 	if ok {
 		cmd.output.Say(colors.Green(name + " is now running.\n"))
 		cmd.output.Say(colors.Green(cmd.urlForApp(name)))
@@ -339,7 +357,7 @@ func (cmd *appRunnerCommand) setAppInstances(appName string, instances int) {
 	cmd.output.Say(fmt.Sprintf("Scaling %s to %d instances", appName, instances))
 
 	ok := cmd.pollUntilSuccess(func() bool {
-		numRunning, _ := cmd.appRunner.NumOfRunningAppInstances(appName)
+		numRunning, _, _ := cmd.appRunner.NumOfRunningAppInstances(appName)
 		return numRunning == instances
 	}, true)
 

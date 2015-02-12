@@ -95,6 +95,7 @@ func cliCommands(exitHandler exit_handler.ExitHandler, config *config.Config, lo
 		Clock:                 clock,
 		Logger:                logger,
 		TailedLogsOutputter:   tailedLogsOutputter,
+		ExitHandler:           exitHandler,
 	}
 
 	appRunnerCommandFactory := app_runner_command_factory.NewAppRunnerCommandFactory(appRunnerCommandFactoryConfig)
